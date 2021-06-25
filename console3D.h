@@ -26,6 +26,20 @@ public:
 
 class camera
 {
+private:
+	//enum
+	//{
+	//	DIRECTION,
+	//	TOP,
+	//	RIGHT
+	//};
+	//std::vector<int> rotate_pri;
+	//float direction_phi;
+	//float top_phi;
+	//float right_phi;
+	//void rotateDirection(vector3f &_top_direction, vector3f &_direction, vector3f &_right_direction);
+	//void rotateTopDirection(vector3f& _top_direction, vector3f& _direction, vector3f& _right_direction);
+	//void rotateRightDirection(vector3f& _top_direction, vector3f& _direction, vector3f& _right_direction);
 public:
 	vector3f pos;
 	vector3f direction;
@@ -51,4 +65,7 @@ public:
 
 void update(swapChain& sp);
 bool backBlanking(POS p1, POS p2, POS p3);
+void drawTriangle(POS p1, POS p2, POS p3, swapChain& sp, char fillWith = '*', WORD color = F_WHITE);
+void drawTriangle(vector3 p1, vector3 p2, vector3 p3, swapChain& sp, char fillWith = '*', WORD color = F_WHITE);
+void drawLine(POS p1, POS p2, swapChain& sp, char fillWith = '*', WORD color = F_WHITE)
 #endif

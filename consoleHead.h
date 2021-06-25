@@ -3,10 +3,13 @@
 #include<Windows.h>
 #include<vector>
 #include<math.h>
+#define PI 3.141592
 #include"Eigen/Eigen"
 using namespace Eigen;
 typedef std::vector<std::vector<float>>  matrix4;
 typedef COORD POS;
+
+
 struct vector3
 {
 	short X;
@@ -20,8 +23,16 @@ struct vector3f
 	float X;
 	float Y;
 	float Z;
-	float W;
+	short W;
 };
+
+
+//struct vector4
+//{
+//	vector3 pos;
+//	WORD color;
+//};
+
 
 enum
 {
@@ -61,6 +72,5 @@ enum
 #define B_DARK_GREY 0X00D0
 #define B_GREY 0X00E0
 #define B_WHITE 0X00F0
-
 
 #endif // !CONSOLEHEAD_H_#pragma once

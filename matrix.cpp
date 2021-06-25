@@ -2,10 +2,10 @@
 
 void projection(int _near, int _far, float fov, float aspect, matrix4& matrix)
 {
-	float cot_fov = 1.0 / tan(fov);
+	float cot_fov = 1.0 / tan(fov/2);
 	matrix4 m = zero(4);
-	//m[0][0] = cot_fov / (2 * aspect);
-	//m[1][1] = cot_fov / 2;
+	//m[0][0] = cot_fov / (aspect);
+	//m[1][1] = cot_fov;
 	//m[2][2] = ((float)_near + (float)_far) / ((float)_near - (float)_far);
 	//m[2][3] = -(2.0f * _near * _far) / ((float)_near - (float)_far);
 	//m[3][2] = 1;
@@ -15,6 +15,52 @@ void projection(int _near, int _far, float fov, float aspect, matrix4& matrix)
 	m[2][3] = -_near * _far;
 	m[3][2] = 1;
 	matrix = product(m, matrix);
+}
+
+vector3 cross3D(vector3 v1, vector3 v2)
+{
+	vector3 v;
+	v.X = v1.Y * v2.Z - v1.Z * v2.Y;
+	v.Y = v1.Z * v2.X - v1.X * v2.Z;
+	v.Z = v1.X * v2.Y - v1.Y * v2.X;
+	v.W = 0;
+	return v;
+}
+
+vector3 operator-(vector3 v1, vector3 v2)
+{
+	vector3 v = { v1.X - v2.X,v1.Y - v2.Y,v1.Z - v2.Z,v1.W - v2.W };
+	if (v.W == -1)
+	{
+		v.X = -v.X;
+		v.Y = -v.Y;
+		v.Z = -v.Z;
+		v.W = 1;
+	}
+	return v;
+}
+
+vector3f operator-(vector3f v1, vector3f v2)
+{
+	vector3f v ={ v1.X - v2.X,v1.Y - v2.Y,v1.Z - v2.Z,v1.W - v2.W };
+	if (v.W == -1)
+	{
+		v.X = -v.X;
+		v.Y = -v.Y;
+		v.Z = -v.Z;
+		v.W = 1;
+	}
+	return v;
+}
+
+vector3f cross3D(vector3f v1, vector3f v2)
+{
+	vector3f v;
+	v.X = v1.Y * v2.Z - v1.Z * v2.Y;
+	v.Y = v1.Z * v2.X - v1.X * v2.Z;
+	v.Z = v1.X * v2.Y - v1.Y * v2.X;
+	v.W = 0;
+	return v;
 }
 
 int cross2D(POS p1, POS p2)
@@ -119,6 +165,7 @@ POS operator-(POS p1, POS p2)
 {
 	return POS{ p1.X - p2.X,p1.Y - p2.Y };
 }
+
 void transform(matrix4 m, vector3& v)
 {
 	vector3 v1 = v;
