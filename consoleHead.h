@@ -4,18 +4,30 @@
 #include<vector>
 #include<math.h>
 #define PI 3.141592
-#include"Eigen/Eigen"
-using namespace Eigen;
-typedef std::vector<std::vector<float>>  matrix4;
-typedef COORD POS;
 
+#include "Eigen/Eigen"
+using namespace Eigen;
+
+typedef std::vector<std::vector<float>>  matrix4;
+typedef std::vector<std::vector<float>>  matrix2;
+typedef std::vector<std::vector<float>>  matrix3;
+typedef std::vector<std::vector<float>>  matrix_;
+typedef std::vector<std::vector<float>>  matrix2x1;
+typedef std::vector<std::vector<float>>  matrix3x1;
+class camera;
+
+struct POS
+{
+	int X;
+	int Y;
+};
 
 struct vector3
 {
-	short X;
-	short Y;
-	short Z;
-	short W;
+	int X;
+	int Y;
+	int Z;
+	int W;
 };
 
 struct vector3f
@@ -25,21 +37,13 @@ struct vector3f
 	float Z;
 	short W;
 };
-
-
-//struct vector4
-//{
-//	vector3 pos;
-//	WORD color;
-//};
-
-
 enum
 {
 	LEFT = -1,
 	COLLINEAR = 0,
 	RIGHT = 1
 };
+//颜色
 #define F_BLACK 0X0000
 #define F_DARK_RED 0X0001
 #define F_RED 0X0002

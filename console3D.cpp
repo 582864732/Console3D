@@ -6,19 +6,8 @@
 #include<sstream>
 #include<conio.h>
 using namespace std;
-CONSOLE_FONT_INFOEX a;
-HANDLE hOutput = GetStdHandle(STD_OUTPUT_HANDLE);
 
-
-void setPos(int X, int Y)
-{
-	COORD pos;
-	pos.X = X;
-	pos.Y = Y;
-	SetConsoleCursorPosition(hOutput, pos);
-}
-
-float timer(int reset = 0)
+float timer(int reset)
 {
 	static LARGE_INTEGER priorTime;
 	LARGE_INTEGER framePreSec;
@@ -46,30 +35,22 @@ swapChain::swapChain(short h, short w, short c_size,bool useBackBlank)
 	width = w;
 	data_buff = new CHAR_INFO[height * width];
 	data = new CHAR_INFO * [height];
+	depth_buff = new float[height*width];
+	depth = new float* [height];
 	for (int i = 0; i < height; i++)
 	{
 		data[i] = data_buff + width * i;
+		depth[i] = depth_buff + width * i;
 	}
 	clearData();
 	SMALL_RECT sr = { 0,0,width,height };
-	//CONSOLE_SCREEN_BUFFER_INFOEX buff;
-	//SetConsoleScreenBufferSize(front, COORD{ 600,600 });
-	//SetConsoleScreenBufferSize(back, COORD{ 600,600 });
-	//SetConsoleWindowInfo(front, TRUE, &sr);
-	//SetConsoleWindowInfo(back, TRUE, &sr);
-	//GetConsoleScreenBufferInfoEx(front, &buff);
-	//buff.dwSize = COORD{ (short)width,(short)height };
-	//buff.dwMaximumWindowSize = COORD{ (short)width,(short)height };
 	CONSOLE_SCREEN_BUFFER_INFOEX buff;
-	//GetConsoleScreenBufferInfoEx(GetStdHandle(STD_OUTPUT_HANDLE), &buff);
 	buff.bFullscreenSupported = false;
 	buff.cbSize = sizeof(buff) * 1;
 	buff.dwCursorPosition = COORD{ 0,0 };
 	buff.dwMaximumWindowSize = COORD{ (short)width,(short)height };
 	buff.dwSize = COORD{ (short)width,(short)height };
 	buff.srWindow = sr;
-	//buff.wAttributes = F_R;
-	//buff.wPopupAttributes = F_R;
 	buff.ColorTable[0] = RGB(0, 0, 0);
 	buff.ColorTable[1] = RGB(128, 0, 0);
 	buff.ColorTable[2] = RGB(255, 0, 0);
@@ -139,19 +120,22 @@ void swapChain::clearData()
 		{
 			data[i][j].Attributes = F_BLACK;
 			data[i][j].Char.AsciiChar = ' ';
+			depth[i][j] = -1;
 		}
 	}
 }
 
-camera::camera(vector3f _pos, vector3f _direction, vector3f _top_direction, vector3f _right_direction)
+camera::camera(vector3f _pos, vector3f _direction, vector3f _top_direction)
 {
-	//direction_phi = 0;
-	//top_phi = 0;
-	//right_phi = 0;
+	aspect = 1;
+	fov = PI / 4;
+	f = 1000;
+	n = 100;
 	pos = _pos;
-	direction = _direction;
-	top_direction = _top_direction;
-	right_direction = _right_direction;
+	direction = _direction/normal(_direction);
+	top_direction = _top_direction/normal(_top_direction);
+	right_direction = cross3D(top_direction,direction);
+	tan_h_fov = 0;
 }
 camera::~camera() {}
 matrix4 camera::getViewMatrix()
@@ -174,134 +158,70 @@ matrix4 camera::getViewMatrix()
 			matrix[i][j] = m_inv(i, j);
 		}
 	}
+	matrix[3][3] = 1;
 	return matrix;
+}
+
+matrix4 camera::getDirectionMatrix()
+{
+	matrix4 m = identity(4);
+	m[0][0] = right_direction.X;
+	m[0][1] = right_direction.Y;
+	m[0][2] = right_direction.Z;
+	m[1][0] = top_direction.X;
+	m[1][1] = top_direction.Y;
+	m[1][2] = top_direction.Z;
+	m[2][0] = direction.X;
+	m[2][1] = direction.Y;
+	m[2][2] = direction.Z;
+	return m;
 }
 
 void camera::rotateRightDirection(float phi)
 {
-	matrix4 m = identity(4);
-	matrix4 m1 = m;
-	//translate3D(-pos.X, -pos.Y, -pos.Z, m);
-	m[0][0] = right_direction.X;
-	m[1][0] = right_direction.Y;
-	m[2][0] = right_direction.Z;
-	m = inverse(m);
+	//matrix4 m = getViewMatrix();
+	matrix4 m1 = getDirectionMatrix();
+	matrix4 m = inverse(m1);
 	rotateX(phi, m);
 	m = product(m1, m);
-	//translate3D(pos.X, pos.Y, pos.Z, m);
-	transform(m, right_direction);
+	//transform(m, right_direction);
 	transform(m, direction);
+	//unitization(direction);
 	transform(m, top_direction);
+	//unitization(top_direction);
 }
 
 void camera::rotateTopDirection(float phi)
 {
-	matrix4 m = identity(4);
-	matrix4 m1 = m;
-	//translate3D(-pos.X, -pos.Y, -pos.Z, m);
-	m[0][1] = top_direction.X;
-	m[1][1] = top_direction.Y;
-	m[2][1] = top_direction.Z;
-	m = inverse(m);
+	//matrix4 m = getViewMatrix();
+	matrix4 m1 = getDirectionMatrix();
+	matrix4 m = inverse(m1);
 	rotateY(phi, m);
 	m = product(m1, m);
-	//translate3D(pos.X, pos.Y, pos.Z, m);
-	transform(m, top_direction);
 	transform(m, direction);
 	transform(m, right_direction);
 }
 
 void camera::rotateDirection(float phi)
 {
-	matrix4 m = identity(4);
-	matrix4 m1 = m;
-	//translate3D(-pos.X, -pos.Y, -pos.Z, m);
-	m[0][2] = direction.X;
-	m[1][2] = direction.Y;
-	m[2][2] = direction.Z;
-	m = inverse(m);
+	matrix4 m1 = getDirectionMatrix();
+	matrix4 m = inverse(m1);
 	rotateZ(phi, m);
 	m = product(m1, m);
-	//translate3D(pos.X, pos.Y, pos.Z, m);
 	transform(m, top_direction);
-	transform(m, direction);
 	transform(m, right_direction);
 }
 
-//void camera::rotateDirection(vector3f& _top_direction, vector3f& _direction, vector3f& _right_direction)
-//{
-//	matrix4 m = identity(4);
-//	translate3D(-pos.X, -pos.Y, -pos.Z, m);
-//	m[0][2] = _direction.X;
-//	m[1][2] = _direction.Y;
-//	m[2][2] = _direction.Z;
-//	m = inverse(m);
-//	rotateZ(direction_phi, m);
-//	translate3D(pos.X, pos.Y, pos.Z, m);
-//	transform(m,_top_direction);
-//	transform(m,_direction);
-//	transform(m, _right_direction);
-//}
-//
-//void camera::rotateTopDirection(vector3f& _top_direction, vector3f& _direction, vector3f& _right_direction)
-//{
-//	matrix4 m = identity(4);
-//	translate3D(-pos.X, -pos.Y, -pos.Z, m);
-//	m[0][1] = _top_direction.X;
-//	m[1][1] = _top_direction.Y;
-//	m[2][1] = _top_direction.Z;
-//	m = inverse(m);
-//	rotateY(top_phi, m);
-//	translate3D(pos.X, pos.Y, pos.Z, m);
-//	transform(m, _direction);
-//	transform(m, _right_direction);
-//}
-//
-//void camera::rotateRightDirection(vector3f& _top_direction, vector3f& _direction, vector3f& _right_direction)
-//{
-//	matrix4 m = identity(4);
-//	translate3D(-pos.X, -pos.Y, -pos.Z, m);
-//	m[0][0] = _right_direction.X;
-//	m[1][0] = _right_direction.Y;
-//	m[2][0] = _right_direction.Z;
-//	m = inverse(m);
-//	rotateX(right_phi, m);
-//	translate3D(pos.X, pos.Y, pos.Z, m);
-//	transform(m, _direction);
-//	transform(m, _top_direction);
-//}
 
-scene::scene(swapChain* _sp)
+
+void drawTriangle(vector3f p1, vector3f p2, vector3f p3, swapChain& sp, char fillWith, WORD color)
 {
-	sp = _sp;
-}
-
-scene::~scene(){}
-
-bool backBlanking(POS p1, POS p2, POS p3)
-{
-	POS p;
-	p.X = p1.X / 3 + p2.X / 3 + p3.X / 3;
-	p.Y = p1.Y / 3 + p2.Y / 3 + p3.Y / 3;
-	int d1 = cross2D(p2 - p1, p - p1);
-	int d2 = cross2D(p3 - p2, p - p2);
-	int d3 = cross2D(p1 - p3, p - p3);
-	if (d1 == RIGHT && d2 == RIGHT && d3 == RIGHT)
-		return true;
-	return false;
-}
-
-void drawTriangle(vector3 p1, vector3 p2, vector3 p3, swapChain& sp, char fillWith, WORD color)
-{
-	drawTriangle(POS{ p1.X,p1.Y }, POS{ p2.X,p2.Y }, POS{ p3.X,p3.Y }, sp, fillWith, color);
-}
-
-void drawTriangle(POS p1, POS p2, POS p3, swapChain& sp, char fillWith , WORD color )
-{
-	if (sp.backBlank && backBlanking(p1, p2, p3)) return;
-	POS max_pos = p1;
-	POS min_pos = p2;
-	vector<POS> sort_pos = { p1,p2,p3 };
+	if (p1.W || p2.W || p3.W);
+	else return;
+	if (sp.backBlank && backBlanking(p1, p2, p3)==1) return;
+	vector3f max_pos = p1;
+	vector3f min_pos = p2;
+	vector<vector3f> sort_pos = { p1,p2,p3 };
 	for (int i = 0; i < 3; i++)
 	{
 		for (int j = 0; j < 2 - i; j++)
@@ -318,9 +238,15 @@ void drawTriangle(POS p1, POS p2, POS p3, swapChain& sp, char fillWith , WORD co
 	}
 	min_pos.Y = sort_pos[0].Y;
 	max_pos.Y = sort_pos[2].Y;
-	POS point = {0,0};
-	int c = 0;
-	int c1 = 0;
+	vector3f point = { 0,0 };
+	matrix3x1 b = resize(3,1);
+	matrix3x1 result(b);
+	matrix3 m = zero(3);
+	m[0][0] = p1.X; m[1][0] = p2.X; m[2][0] = p3.X;
+	m[0][1] = p1.Y; m[1][1] = p2.Y; m[2][1] = p3.Y;
+	m[0][2] = 1;    m[1][2] = 1;    m[2][2] = 1;
+	b[0][0] = p1.Z; b[1][0] = p2.Z; b[2][0] = p3.Z;
+	result = product(inverse(m), b);
 	for (point.X = min_pos.X; point.X <= max_pos.X; point.X++)
 	{
 		for (point.Y = min_pos.Y; point.Y <= max_pos.Y; point.Y++)
@@ -332,19 +258,27 @@ void drawTriangle(POS p1, POS p2, POS p3, swapChain& sp, char fillWith , WORD co
 			int d1 = cross2D(p2 - p1, point - p1);
 			int d2 = cross2D(p3 - p2, point - p2);
 			int d3 = cross2D(p1 - p3, point - p3);
+			float z = result[0][0] * point.X + result[1][0] * point.Y + result[2][0];
 			if (d1 <= 0 && d2 <= 0 && d3 <= 0)
 			{
-				sp.data[point.Y][point.X].Char.AsciiChar = fillWith;
-				sp.data[point.Y][point.X].Attributes = color;
+				//if (z < 0) continue;
+				if (sp.depth[(int)point.Y][(int)point.X] == -1 || sp.depth[(int)point.Y][(int)point.X] > z)
+				{
+					sp.data[(int)point.Y][(int)point.X].Char.AsciiChar = fillWith;
+					sp.data[(int)point.Y][(int)point.X].Attributes = color;
+					sp.depth[(int)point.Y][(int)point.X] = z;
+				}
 			}
 			else if (d1 >= 0 && d2 >= 0 && d3 >= 0)
 			{
-				sp.data[point.Y][point.Y].Char.AsciiChar = fillWith;
-				sp.data[point.Y][point.X].Attributes = color;
+				//if (z < 0)continue;
+				if (sp.depth[(int)point.Y][(int)point.X] == -1 || sp.depth[(int)point.Y][(int)point.X] > z)
+				{
+					sp.data[(int)point.Y][(int)point.X].Char.AsciiChar = fillWith;
+					sp.data[(int)point.Y][(int)point.X].Attributes = color;
+					sp.depth[(int)point.Y][(int)point.X] = z;
+				}
 			}
-			else
-				c++;
-			c1++;
 		}
 	}
 }
@@ -437,77 +371,155 @@ void drawLine(POS p1, POS p2, swapChain& sp, char fillWith , WORD color)
 	}
 }
 
-void update(swapChain& sp)
+void camera::setCamperaAttribute(int _near, int _far, float _fov, float _aspect)
 {
-	sp.update();
-	sp.swap();
-	sp.show();
+	n = _near;
+	f = _far;
+	fov = _fov;
+	aspect = _aspect;
+	tan_h_fov = tan(fov / 2);
 }
+
+void camera::setFrontTop(vector3f _direction, vector3f _top)
+{
+	unitization(_direction);
+	unitization(_top);
+	direction = _direction;
+	top_direction = _top;
+	right_direction = cross3D(top_direction, direction);
+}
+
+void camera::setTopRight(vector3f _top, vector3f _right)
+{
+	unitization(_right);
+	unitization(_top);
+	right_direction = _right;
+	top_direction = _top;
+	direction = cross3D(right_direction, top_direction);
+}
+
+void camera::setRightFront(vector3f _right, vector3f _direction)
+{
+	unitization(_right);
+	unitization(_direction);
+	right_direction = _right;
+	direction = _direction;
+	top_direction = cross3D(direction,right_direction);
+}
+
+enum mode
+{
+	ROTATE=0,
+	NONE
+};
+
+void drawCube(vector<vector3f> v1,matrix_ viewMatrix,camera* showing_cam,swapChain& win,vector3 pos,float phi)
+{
+	matrix_ m = identity(4);
+	translate3D(-25, -25, -25, m);
+	translate3D(pos.X, pos.Y, pos.Z, m);
+	rotateY(2*phi, m);
+	rotateX(phi, m);
+	m = product(viewMatrix, m);
+	projection(showing_cam, m);
+	for (int i = 0; i < v1.size(); i++)
+	{
+		transform(m, v1[i]);
+		if (v1[i].X > win.width / 2 || v1[i].X<-win.width / 2 || v1[i].Y>win.height / 2 ||
+			v1[i].Y<-win.height / 2 || v1[i].Z>showing_cam->f || v1[i].Z < showing_cam->n)
+		{
+			v1[i].W = 0;
+		}
+	}
+	for (int i = 0; i < v1.size(); i++)
+	{
+		v1[i].X += win.width / 2;
+		v1[i].Y += win.height / 2;
+	}
+	//randering cube
+	//front
+	drawTriangle(v1[2], v1[1], v1[0], win, '*', F_BLACK | B_WHITE);
+	drawTriangle(v1[3], v1[2], v1[0], win, '*', F_BLACK | B_WHITE);
+	//right
+	drawTriangle(v1[6], v1[2], v1[3], win, '*', F_RED | B_RED);
+	drawTriangle(v1[7], v1[6], v1[3], win, '*', F_RED | B_RED);
+	//back
+	drawTriangle(v1[5], v1[6], v1[7], win, '*', F_BLUE | B_BLUE);
+	drawTriangle(v1[4], v1[5], v1[7], win, '*', F_BLUE | B_BLUE);
+	//left
+	drawTriangle(v1[1], v1[5], v1[4], win, '*', F_YELLOW | B_YELLOW);
+	drawTriangle(v1[0], v1[1], v1[4], win, '*', F_YELLOW | B_YELLOW);
+	//top
+	drawTriangle(v1[3], v1[0], v1[4], win, '*', F_CYAN | B_CYAN);
+	drawTriangle(v1[7], v1[3], v1[4], win, '*', F_CYAN | B_CYAN);
+	//bottom
+	drawTriangle(v1[6], v1[5], v1[1], win, '*', F_PURPLE | B_PURPLE);
+	drawTriangle(v1[2], v1[6], v1[1], win, '*', F_PURPLE | B_PURPLE);
+}
+
 
 int main()
 {
-	short z = 200;
-	camera cam(vector3f{ 125,125,0,1 });
+	short r = 100;
+	camera cam(vector3f{ 0,0,-(float)r,1 });
+	camera cam1(vector3f{ 100,100,-100,1 }, { -1,-1,1,0 }, {1,1,2,0});
+	cam.setCamperaAttribute(17, 500, PI / 4, 1);
+	cam1.setCamperaAttribute(50, 500, PI / 4, 1);
 	swapChain win(250, 250, 3,true);
 	win.init();
 	timer(1);
-	vector<vector3> v = { {50,50,z,1},{50,200,z,1},{200,200,z,1 },{ 200,50,z + 100,1} };
-	vector<vector3> v_sq = {
-		{0,0,300,1},{0,100,300,1},{100,100,300,1},{100,0,300,1},
-		{0,0,400,1},{0,100,400,1},{100,100,400,1},{100,0,400,1} };
+	vector<vector3f> v_sq = {
+		{0,0,0,1},{0,50,0,1},{50,50,0,1},{50,0,0,1},
+		{0,0,50,1},{0,50,50,1},{50,50,50,1},{50,0,50,1} };
 	double phi = 0;
-	double beta = 0;
-	double alpha = 0;
-	double omiga = 3.1415926 / 6.0;
-	int m = 0, n = 0;
+	double omiga = PI / 6.0;
 	char c = 0;
-	float rotate = 0.1;
+	float rotate = 0.01;
 	float speed = 0.1;
+	mode _mode = ROTATE;
+	float dx = 1;
+	int d = 1;
+	int cam_show = 0;
+	camera* showing_cam = nullptr;
 	while (true)
 	{
-		matrix4 viewMatrix = cam.getViewMatrix();
-		//vector<vector3> v1(v);
-		vector<vector3> v1(v_sq);
-		matrix4 m = identity(4);
-		translate3D(-50, -50, -350, m);
-		//translate3D(-125, -125, -z, m);
-		rotateY(phi, m);
-		rotateX(beta, m);
-		rotateZ(alpha, m);
-		translate3D(125, 125, z, m);
-		//translate3D(50, 50, 350, m);
-		m = product(viewMatrix, m);
-		projection(100, 1000,3.14159/4.0, 1, m);
-		for (int i = 0; i < v1.size(); i++)
-			transform(m, v1[i]);
-		for (int i = 0; i < v1.size(); i++)
+		if (cam_show == 0)
 		{
-			v1[i].X += win.width/2;
-			v1[i].Y += win.height/2;
+			showing_cam = &cam;
+			if (_mode == ROTATE)
+			{
+				cam.pos.X += dx;
+				if (cam.pos.X == 81.5 && d == 1) d = -1;
+				else if (cam.pos.X == -81.5 && d == -1) d = 1;
+				if (d == 1)
+				{
+					cam.pos.Z = (-cam.pos.X + sqrt(2 * r * r - 3 * cam.pos.X * cam.pos.X)) / 2;
+					cam.pos.Y = cam.pos.X + cam.pos.Z;
+				}
+				else
+				{
+					cam.pos.Z = (-cam.pos.X - sqrt(2 * r * r - 3 * cam.pos.X * cam.pos.X)) / 2;
+					cam.pos.Y = cam.pos.X + cam.pos.Z;
+				}
+				if (cam.pos.X >= 81.5 || cam.pos.X <= -81.5) dx = -dx;
+				if (cam.pos.X > 60 || cam.pos.X < -60) dx = dx > 0 ? 0.5 : -0.5;
+				else dx = dx > 0 ? 1 : -1;
+				vector3f _top = { -1,1,-1,0 };
+				vector3f _direction = { -cam.pos.X,-cam.pos.Y,-cam.pos.Z,0 };
+				cam.setFrontTop(_direction, _top);
+			}
 		}
-		
-		//drawTriangle(POS{ (int)v1[0].X, (int)v1[0].Y }, POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[3].X, (int)v1[3].Y }, win, '*', F_RED | B_RED);
-		//drawTriangle(POS{ (int)v1[0].X, (int)v1[0].Y }, POS{ (int)v1[3].X, (int)v1[3].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, win, '*', F_BLUE | B_BLUE);
-		//drawTriangle(POS{ (int)v1[3].X, (int)v1[3].Y }, POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, win, '*', F_YELLOW | B_YELLOW);
-		//drawTriangle(POS{ (int)v1[0].X, (int)v1[0].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, POS{ (int)v1[2].X, (int)v1[2].Y }, win, '*', F_WHITE | B_WHITE);
-		//zheng front
-		drawTriangle(POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, POS{ (int)v1[0].X, (int)v1[0].Y }, win, '*', F_WHITE | B_WHITE);
-		drawTriangle(POS{ (int)v1[3].X, (int)v1[3].Y }, POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[0].X, (int)v1[0].Y }, win, '*', F_WHITE | B_WHITE);
-		//right
-		drawTriangle(POS{ (int)v1[6].X, (int)v1[6].Y }, POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[3].X, (int)v1[3].Y }, win, '*', F_RED | B_RED);
-		drawTriangle(POS{ (int)v1[7].X, (int)v1[7].Y }, POS{ (int)v1[6].X, (int)v1[6].Y }, POS{ (int)v1[3].X, (int)v1[3].Y }, win, '*', F_RED | B_RED);
-		//back
-		drawTriangle(POS{ (int)v1[5].X, (int)v1[5].Y }, POS{ (int)v1[6].X, (int)v1[6].Y }, POS{ (int)v1[7].X, (int)v1[7].Y }, win, '*', F_BLUE | B_BLUE);
-		drawTriangle(POS{ (int)v1[4].X, (int)v1[4].Y }, POS{ (int)v1[5].X, (int)v1[5].Y }, POS{ (int)v1[7].X, (int)v1[7].Y }, win, '*', F_BLUE | B_BLUE);
-		//left
-		drawTriangle(POS{ (int)v1[1].X, (int)v1[1].Y }, POS{ (int)v1[5].X, (int)v1[5].Y }, POS{ (int)v1[4].X, (int)v1[4].Y }, win, '*', F_YELLOW | B_YELLOW);
-		drawTriangle(POS{ (int)v1[0].X, (int)v1[0].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, POS{ (int)v1[4].X, (int)v1[4].Y }, win, '*', F_YELLOW | B_YELLOW);
-		//top
-		drawTriangle(POS{ (int)v1[3].X, (int)v1[3].Y }, POS{ (int)v1[0].X, (int)v1[0].Y }, POS{ (int)v1[4].X, (int)v1[4].Y }, win, '*', F_CYAN | B_CYAN);
-		drawTriangle(POS{ (int)v1[7].X, (int)v1[7].Y }, POS{ (int)v1[3].X, (int)v1[3].Y }, POS{ (int)v1[4].X, (int)v1[4].Y }, win, '*', F_CYAN | B_CYAN);
-		//bottom
-		drawTriangle(POS{ (int)v1[6].X, (int)v1[6].Y }, POS{ (int)v1[5].X, (int)v1[5].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, win, '*', F_PURPLE | B_PURPLE);
-		drawTriangle(POS{ (int)v1[2].X, (int)v1[2].Y }, POS{ (int)v1[6].X, (int)v1[6].Y }, POS{ (int)v1[1].X, (int)v1[1].Y }, win, '*', F_PURPLE | B_PURPLE);
+		else if (cam_show == 1)
+		{
+			showing_cam = &cam1;
+		}
+		matrix4 viewMatrix = showing_cam->getViewMatrix();
+
+
+		drawCube(v_sq, viewMatrix, showing_cam, win, { 50,0,0,0 },phi);
+		drawCube(v_sq, viewMatrix, showing_cam, win, { 0,0,50,0 },phi);
+		drawCube(v_sq, viewMatrix, showing_cam, win, { 0,0,-50,0 },phi);
+		drawCube(v_sq, viewMatrix, showing_cam, win, { -50,0,0,0 },phi);
 
 
 		win.update();
@@ -515,30 +527,19 @@ int main()
 		win.show();
 		win.clearData();
 		float t = timer();
-		//phi += t * omiga;
+		phi += t * omiga;
 		if (phi >= 3.1415926 * 2)phi = 0;
 		if (_kbhit())
 		{
-			//getchar();
 			c = _getch();
 			switch (c)
 			{
-			case 'a':phi += speed; break;
-			case 'd':phi -= speed; break;
-			case 'w':beta += speed; break;
-			case 's':beta -= speed; break;
-			case 'r':alpha += speed; break;
-			case 'f':alpha -= speed; break;
-			case 'j':cam.rotateTopDirection(rotate); break;
-			case'l':cam.rotateTopDirection(-rotate); break;
-			case'i':cam.rotateRightDirection(rotate); break;
-			case 'k':cam.rotateRightDirection(-rotate); break;
-			case 'u':cam.rotateDirection(rotate); break;
-			case 'o':cam.rotateDirection(-rotate); break;
+			case '1':_mode = _mode == ROTATE ? NONE : ROTATE; break;
+			case '2':omiga = omiga == 0 ? PI / 6.0 : 0; break;
+			case '3':cam_show = cam_show==0?1:0; break;
 			}
 		}
-		//wstring str = to_wstring(cam.pos.X)+L" "+to_wstring(cam.pos.Y)+L" "+ to_wstring(cam.pos.Z);
-		wstring str = to_wstring(1.0 / t) + L"fps ";
+		wstring str = to_wstring(1.0 / t) + L"fps";
 		SetConsoleTitle(str.c_str());
 	}
 	return 0;
